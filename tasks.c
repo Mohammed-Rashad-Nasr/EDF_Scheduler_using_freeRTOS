@@ -224,17 +224,18 @@ by their deadline. */
  * Place the task represented by pxTCB into the appropriate ready list for
  * the task.  It is inserted at the end of the list.
  */
-#if (configUSE_EDF_SCHEDULER == 1)
-		#define prvAddTaskToReadyList( pxTCB )      \
-			vListInsert( &(xReadyTasksListEDF), &( ( pxTCB )->xStateListItem ) ); \
-
-#else 
+#if (configUSE_EDF_SCHEDULER == 0)                          /**** edited ****/
+		
 		#define prvAddTaskToReadyList( pxTCB )                                                                 \
 			traceMOVED_TASK_TO_READY_STATE( pxTCB );                                                           \
 			taskRECORD_READY_PRIORITY( ( pxTCB )->uxPriority );                                                \
 			listINSERT_END( &( pxReadyTasksLists[ ( pxTCB )->uxPriority ] ), &( ( pxTCB )->xStateListItem ) ); \
 			tracePOST_MOVED_TASK_TO_READY_STATE( pxTCB )    		\
 
+#else 
+		#define prvAddTaskToReadyList( pxTCB )      \
+			vListInsert( &(xReadyTasksListEDF), &( (pxTCB )->xStateListItem ) ) ;\
+			tracePOST_MOVED_TASK_TO_READY_STATE( pxTCB )
 #endif
 /*-----------------------------------------------------------*/
 
@@ -342,7 +343,7 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
     #if ( configUSE_POSIX_ERRNO == 1 )
         int iTaskErrno;
     #endif
-		#if ( configUSE_EDF_SCHEDULER == 1 )
+		#if ( configUSE_EDF_SCHEDULER == 1 )        /**** edited ****/
 				TickType_t xTaskPeriod; 
 		#endif
 } tskTCB;
@@ -909,7 +910,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
                     pxNewTCB->ucStaticallyAllocated = tskDYNAMICALLY_ALLOCATED_STACK_AND_TCB;
                 }
             #endif /* tskSTATIC_AND_DYNAMIC_ALLOCATION_POSSIBLE */
-						pxNewTCB->xTaskPeriod = period;
+						pxNewTCB->xTaskPeriod = period;                          /**** edited ****/
 						listSET_LIST_ITEM_VALUE( &( ( pxNewTCB )->xStateListItem ), ( pxNewTCB)->xTaskPeriod + xTaskGetTickCount());
 
             prvInitialiseNewTask( pxTaskCode, pcName, ( uint32_t ) usStackDepth, pvParameters, uxPriority, pxCreatedTask, pxNewTCB, NULL );
@@ -2110,7 +2111,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 void vTaskStartScheduler( void )
 {
     BaseType_t xReturn;
-		#if (configUSE_EDF_SCHEDULER == 1)
+		#if (configUSE_EDF_SCHEDULER == 1)      /**** edited ****/
 
 			TickType_t initIDLEPeriod = 100;
 			
@@ -2939,18 +2940,35 @@ BaseType_t xTaskIncrementTick( void )
                         mtCOVERAGE_TEST_MARKER();
                     }
 
+										
+										
                     /* Place the unblocked task into the appropriate ready
                      * list. */
+										#if (configUSE_EDF_SCHEDULER == 1)                        /**** edited 2 ****/
+											{
+												listSET_LIST_ITEM_VALUE( &( ( pxTCB )->xStateListItem ), ( pxTCB)->xTaskPeriod + xTaskGetTickCount());  
+											}
+										#endif
                     prvAddTaskToReadyList( pxTCB );
 
                     /* A task being unblocked cannot cause an immediate
                      * context switch if preemption is turned off. */
                     #if ( configUSE_PREEMPTION == 1 )
                         {
+												#if (configUSE_EDF_SCHEDULER ==1)             /**** edited 2 ****/
+													
+												{
+													if (pxTCB->xStateListItem.xItemValue <= pxCurrentTCB->xStateListItem.xItemValue) xSwitchRequired = pdTRUE;	
+													else mtCOVERAGE_TEST_MARKER();
+												}
+													#else
+												{
+													
                             /* Preemption is on, but a context switch should
                              * only be performed if the unblocked task has a
                              * priority that is equal to or higher than the
                              * currently executing task. */
+										
                             if( pxTCB->uxPriority >= pxCurrentTCB->uxPriority )
                             {
                                 xSwitchRequired = pdTRUE;
@@ -2959,6 +2977,11 @@ BaseType_t xTaskIncrementTick( void )
                             {
                                 mtCOVERAGE_TEST_MARKER();
                             }
+												  
+										
+													  
+												  }
+												#endif
                         }
                     #endif /* configUSE_PREEMPTION */
                 }
@@ -3191,7 +3214,7 @@ void vTaskSwitchContext( void )
 
         /* Select a new task to run using either the generic C or port
          * optimised asm code. */
-				 #if (configUSE_EDF_SCHEDULER == 0)
+				 #if (configUSE_EDF_SCHEDULER == 0)   /**** edited ****/
 				{
 					taskSELECT_HIGHEST_PRIORITY_TASK(); /*lint !e9079 void * is used as this macro is used with timers and co-routines too.  Alignment is known to be fine as the type of the pointer stored and retrieved is the same. */
 					traceTASK_SWITCHED_IN();
@@ -3579,6 +3602,7 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
      * the idle task is responsible for deleting the task's secure context, if
      * any. */
     portALLOCATE_SECURE_CONTEXT( configMINIMAL_SECURE_STACK_SIZE );
+		 
 
     for( ; ; )
     {
@@ -3607,7 +3631,17 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
                  * the list, and an occasional incorrect value will not matter.  If
                  * the ready list at the idle priority contains more than one task
                  * then a task other than the idle task is ready to execute. */
-                if( listCURRENT_LIST_LENGTH( &( pxReadyTasksLists[ tskIDLE_PRIORITY ] ) ) > ( UBaseType_t ) 1 )
+							#if (configUSE_EDF_SCHEDULER == 0 )                                         /**** edited 2 ****/
+							{
+								if( listCURRENT_LIST_LENGTH( &( pxReadyTasksLists[ tskIDLE_PRIORITY ] ) ) > ( UBaseType_t ) 1 )
+                {
+                    taskYIELD();
+                }
+							}
+							#else
+							{
+								listSET_LIST_ITEM_VALUE(&((pxCurrentTCB)->xStateListItem),(pxCurrentTCB)->xTaskPeriod + xTaskGetTickCount() );
+                if( listCURRENT_LIST_LENGTH( &( xReadyTasksListEDF) ) > ( UBaseType_t ) 1 )
                 {
                     taskYIELD();
                 }
@@ -3615,6 +3649,8 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
                 {
                     mtCOVERAGE_TEST_MARKER();
                 }
+							}
+							#endif
             }
         #endif /* ( ( configUSE_PREEMPTION == 1 ) && ( configIDLE_SHOULD_YIELD == 1 ) ) */
 
