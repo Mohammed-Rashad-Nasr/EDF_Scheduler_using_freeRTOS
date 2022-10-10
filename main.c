@@ -89,88 +89,286 @@ static void prvSetupHardware( void );
 /*-----------------------------------------------------------*/
 
 
+TaskHandle_t 	* Periodic_Transmitter_Hnd =NULL;
+TaskHandle_t 	* Uart_Receiver_Hnd = NULL;
+TaskHandle_t 	* Button_2_Hnd = NULL;
+TaskHandle_t 	* Button_1_Hnd = NULL;
+TaskHandle_t 	* Load2_Hnd = NULL;
+TaskHandle_t 	* Load1_Hnd = NULL;
+
+//QueueHandle_t xQueue ;														
+QueueHandle_t xQueue1 ;														
+QueueHandle_t xQueue2 ;
+QueueHandle_t xQueue3 ;														
+
+//Donot forget to change pin mode in GPIO_cfg.c file 														
+#define BUT1_PIN PIN0
+#define BUT2_PIN PIN1
+#define BUT1_PORT PORT_0
+#define BUT2_PORT PORT_0
 /*
- * Application entry point:
- * Starts all the other tasks, then starts the scheduler. 
- */
-					
-QueueHandle_t xQueue ;														
-														
-struct AMessage
-{
-    char ucMessageID;
-    char ucData[ 20 ];
-};
-
-
- 
-void Button1 ( ){
-	static int CurrentState ;
-	static int PrevState    ;
-	const char * h = "b1high";
-	const char * l = "b1low";
-	CurrentState = GPIO_read(PORT_0,PIN0);
+//Periodicity: 50, Deadline: 50
+This task will monitor rising and falling edge on button 1 and send this event to the consumer task. 
+(Note: The rising and failling edges are treated as separate events, hence they have separate strings
+*/
+void Button_1_Monitor ( void *pvParameter){
+	 pinState_t  CurrentState = GPIO_read(BUT1_PORT,BUT1_PIN);
+	 pinState_t  PrevState    = GPIO_read(BUT1_PORT,BUT1_PIN);
+	 TickType_t xLastWakeTime = xTaskGetTickCount();
+	const char * FallingString = "BUT1_FALL\n";
+	const char * RisingString = "BUT1_RISE\n";
+	for(;;){
+	CurrentState = GPIO_read(BUT1_PORT,BUT1_PIN);
 	if (CurrentState != PrevState) 
-		{
+		{//edge cahnge detected
 			PrevState = CurrentState ;
-			if (CurrentState) xQueueSend( xQueue,( void * ) &h,( TickType_t ) 100 );
-			else xQueueSend( xQueue,( void * ) &l,( TickType_t ) 100 );
+			if (CurrentState){
+			//Rising Edge Detected
+			//xQueueSend( xQueue1,( void * ) &RisingString,( TickType_t ) 50 );
+				xQueueOverwrite(xQueue1,(void*)"R");
+			}
+			else {
+				//Falling Edge Detected
+			//xQueueSend( xQueue1,( void * ) &FallingString,( TickType_t ) 50 );
+			xQueueOverwrite(xQueue1,(void*)"F");
+			}
 		}
 	else 
 		{
-			/** **/
+			xQueueOverwrite(xQueue1,(void*)"N");
 		}
+	vTaskDelayUntil( &xLastWakeTime , 50);}
 	
 }
 
-void Button2 ( ){
-	static int CurrentState ;
-	static int PrevState    ;
-	const char * h = "b2high";
-	const char * l = "b2low";
-	CurrentState = GPIO_read(PORT_0,PIN1);
+
+
+
+/*
+//Periodicity: 50, Deadline: 50
+This task will monitor rising and falling edge on button 1 and send this event to the consumer task. 
+(Note: The rising and failling edges are treated as separate events, hence they have separate strings
+*/
+void Button_2_Monitor ( void *pvParameter){
+	 pinState_t  CurrentState = GPIO_read(BUT2_PORT,BUT2_PIN);
+	 pinState_t  PrevState    = GPIO_read(BUT2_PORT,BUT2_PIN);
+	TickType_t xLastWakeTime2 = xTaskGetTickCount();
+	const char * FallingString = "BUT2_FALL\n";
+	const char * RisingString = "BUT2_RISE\n";
+	for(;;){
+	CurrentState = GPIO_read(BUT2_PORT,BUT2_PIN);
 	if (CurrentState != PrevState) 
-		{
+		{//edge cahnge detected
 			PrevState = CurrentState ;
-			if (CurrentState) xQueueSend( xQueue,( void * ) &h,( TickType_t ) 100 );
-			else xQueueSend( xQueue,( void * ) &l,( TickType_t ) 100 );
+			if (CurrentState){
+			//Rising Edge Detected
+			//xQueueSend( xQueue2,( void * ) &RisingString,( TickType_t ) 50 );
+			xQueueOverwrite(xQueue2,(void*)"R");
+			}
+			else {
+				//Falling Edge Detected
+			//xQueueSend( xQueue2,( void * ) &FallingString,( TickType_t ) 50 );
+			xQueueOverwrite(xQueue2,(void*)"F");
+			}
 		}
 	else 
 		{
-			/** **/
+			xQueueOverwrite(xQueue2,(void*)"N");
 		}
+	vTaskDelayUntil( &xLastWakeTime2 , 50);}
 	
 }
 
-void transmitter ()
+
+
+
+
+
+const char * s = "From Periodic_Transmitter..!\n";
+int i =0;
+typedef struct{
+	uint8_t ID;
+	char string[29];
+}xMESSAGE;
+
+xMESSAGE m1 ={ 3,"Periodic-Task.\n"};
+
+#define UART_RECEIVER_MAX_LENGHT 28
+
+#define BUT_TASK_MAX_LENGHT 10
+#define Periodic_Transmitter_PERIODICITY 100
+/*
+Task 3: ""Periodic_Transmitter"", {Periodicity: 100, Deadline: 100}
+This task will send preiodic string every 100ms to the consumer task*/
+#if 1
+void Periodic_Transmitter (void *pvParameter)
 {
-	const char * s = "string"; 
-	xQueueSend( xQueue,( void * ) &s,( TickType_t ) 100 );
+	TickType_t  PreviousWakeTime = xTaskGetTickCount();
+	const char * s ="\nFrom Periodic_Transmitter..!\n";//20 ,5
+	for(;;){
+		//Write to the the Queue
+    if( xQueue3 != 0 )
+    {
+       /* Send an unsigned long.  Wait for 10 ticks for space to become available if necessary. */
+		int i =0;
+		for( i = 0 ; i < 29 ; i++){//&s[i]
+        	 xQueueSend( xQueue3,(&s[i]), Periodic_Transmitter_PERIODICITY ) ;
+		}
+	}
+		vTaskDelayUntil(&PreviousWakeTime,Periodic_Transmitter_PERIODICITY);//Delay a task until a specified time. This function can be used by periodic tasks to ensure a constant execution frequency.
+	}
 }
+#endif
 
+#define UART_RECEIVER_PERIODICITY 20
 
-
-void receiver ()
+/*
+Task 4: ""Uart_Receiver"", {Periodicity: 20, Deadline: 20}
+This is the consumer task which will write on UART any received string from other tasks	*/
+void Uart_Receiver (void *pvParameter)
 {
+	TickType_t  PreviousWakeTime = xTaskGetTickCount();
 	
-	char string[10];
-	xQueueReceive( xQueue,&string,( TickType_t ) 10 );
-	vSerialPutString((const signed char *)&string,10);
+	//signed  char string_buffer1[BUT_TASK_MAX_LENGHT];//="mohamed\n";
+	//xMESSAGE * pxMEASSAGE ;
+	//signed  char string_buffer2[BUT_TASK_MAX_LENGHT];
+  signed char button1 ;
+	signed char button2;
+	signed  char string_buffer3[29];
+	int j,t,h;
+	
+	for(;;){
+		GPIO_write(PORT_0,PIN2,!GPIO_read(PORT_0,PIN2));
+		//Read from Queue and send it over UART TX
+				#if 1
+		if(xQueueReceive( xQueue1,  &button1,  0 ) && button1 != 'N'){
+			//for( j = 0 ; j < BUT_TASK_MAX_LENGHT; j++){
+				//xQueueReceive( xQueue1,  &button1,  0 ); //0 >> DONOT BLOCK THE CODE		
+			//}
+		  xSerialPutChar('B');
+			xSerialPutChar('1');
+			xSerialPutChar(' ');
+			xSerialPutChar('-');
+			xSerialPutChar('>');
+			xSerialPutChar(' ');
+			xSerialPutChar(button1);
+			xSerialPutChar('|');
+			xSerialPutChar('_');
+
+		xQueueReset(xQueue1);
+			}
+		if(xQueueReceive( xQueue2,  &button2,  0 ) && button2 != 'N' ){
+			//for( t = 0 ; t < BUT_TASK_MAX_LENGHT; t++){
+				//xQueueReceive( xQueue2,  &button2,  0 ); //0 >> DONOT BLOCK THE CODE		
+			//}
+			//vSerialPutString(( signed char *)"\nbutton2 has : ",UART_RECEIVER_MAX_LENGHT);
+			xSerialPutChar('B');
+			xSerialPutChar('2');
+			xSerialPutChar(' ');
+			xSerialPutChar('-');
+			xSerialPutChar('>');
+			xSerialPutChar(' ');
+			xSerialPutChar(button2);
+			xSerialPutChar('|');
+			xSerialPutChar('_');
+			//vSerialPutString(( signed char *)" edge\n",UART_RECEIVER_MAX_LENGHT);
+		xQueueReset(xQueue2);
+			}
+		if(uxQueueMessagesWaiting(xQueue3) != 0){
+			for( h = 0 ; h < 29; h++){
+				xQueueReceive( xQueue3,  (string_buffer3+h),  0 ); //0 >> DONOT BLOCK THE CODE		
+			}
+		vSerialPutString(( signed char *)&string_buffer3,UART_RECEIVER_MAX_LENGHT);
+		xQueueReset(xQueue3);
+			}
+				#endif
+			
+		vTaskDelayUntil(&PreviousWakeTime,UART_RECEIVER_PERIODICITY);//Delay a task until a specified time. This function can be used by periodic tasks to ensure a constant execution frequency.
+	}
 
 }
+
+void Load1 (void *pvParameter){
+	TickType_t  PreviousWakeTime = xTaskGetTickCount();
+	//GPIO_write(PORT_0,PIN2,1);
+	int a,b;
+	for(;;){
+		//GPIO_write(PORT_0,PIN0,1);
+	for (a =0 ; a<37300;a++){
+		
+	}
+		//GPIO_write(PORT_0,PIN0,0);
+		for (b =0 ; b<37300;b++){
+			
+		}
+	vTaskDelayUntil(&PreviousWakeTime,10);
+	}
+}
+
+void Load2 (void *pvParameter){
+	TickType_t  PreviousWakeTime = xTaskGetTickCount();
+	//GPIO_write(PORT_0,PIN2,1);
+	int d,f;
+	for(;;){
+		GPIO_write(PORT_0,PIN0,1);
+	for (d =0 ; d<8950;d++){
+		
+	}
+		GPIO_write(PORT_0,PIN0,0);
+		for (f =0 ; f<8950;f++){
+			
+		}
+	vTaskDelayUntil(&PreviousWakeTime,100);
+	}
+}
+
+
+//for debug
+void TestGPIO(void *pvParameter){
+	TickType_t  PreviousWakeTime = xTaskGetTickCount();
+	for(;;){
+	GPIO_write(PORT_0,PIN2,!GPIO_read(PORT_0,PIN2));//toggling
+	vTaskDelayUntil(&PreviousWakeTime,5);//Delay a task until a specified time. This function can be used by periodic tasks to ensure a constant execution frequency.
+	}
+}
+
 
 
 int main( void )
 {
+	
 	/* Setup the hardware for use with the Keil demo board. */
 	prvSetupHardware();
-  xSerialPortInitMinimal(ser9600);
+ // xSerialPortInitMinimal(ser115200);
 	
-	xQueue=xQueueCreate( 10, sizeof( char ) ) ;
-	xTaskPeriodicCreate( Button1, ( const char * ) "Button 1", configMINIMAL_STACK_SIZE, NULL,1, NULL, 50 );
-	xTaskPeriodicCreate( Button2, ( const char * ) "Button 2", configMINIMAL_STACK_SIZE, NULL,1, NULL, 50 );
-	xTaskPeriodicCreate( transmitter, ( const char * ) "transmitter", configMINIMAL_STACK_SIZE, NULL,1, NULL, 100 );
-	xTaskPeriodicCreate( receiver , ( const char * ) "receiver", configMINIMAL_STACK_SIZE, NULL,1, NULL, 20 );
+
+
+	#if(configUSE_EDF_SCHEDULER == 1)
+	xQueue1=xQueueCreate( 10, sizeof( char ));
+	xQueue2=xQueueCreate( 10, sizeof( char ));
+	xQueue3=xQueueCreate( 29, sizeof( char ));
+	#if 0
+	xQueue1=xQueueCreate( 3, sizeof( xMESSAGE * ));
+	
+	
+		
+	if( xQueueSend( xQueue1, ( void * ) &m1, ( TickType_t ) Periodic_Transmitter_PERIODICITY ) != pdPASS )
+					{
+							/* Failed to post the message, even after 10 ticks. */
+					}
+#endif
+	//xTaskPeriodicCreate( Button_1_Monitor, ( const char * ) "Button_1_Monitor", configMINIMAL_STACK_SIZE, NULL,1, Button_1_Hnd, 50 );
+	xTaskPeriodicCreate( Button_2_Monitor, ( const char * ) "Button_2_Monitor", configMINIMAL_STACK_SIZE, NULL,1, Button_2_Hnd, 50 );
+	xTaskPeriodicCreate( Periodic_Transmitter, ( const char * ) "Periodic_Transmitter", configMINIMAL_STACK_SIZE, NULL,1, Periodic_Transmitter_Hnd, Periodic_Transmitter_PERIODICITY );
+	xTaskPeriodicCreate( Uart_Receiver , ( const char * ) "Uart_Receiver", configMINIMAL_STACK_SIZE, NULL,1, Uart_Receiver_Hnd, UART_RECEIVER_PERIODICITY );
+	xTaskPeriodicCreate( Load1 , ( const char * ) "Load1", configMINIMAL_STACK_SIZE, NULL,1, Load1_Hnd, 10 );
+	xTaskPeriodicCreate( Load2 , ( const char * ) "Load2", configMINIMAL_STACK_SIZE, NULL,1, Load2_Hnd, 100 );
+	//For debug
+	///xTaskPeriodicCreate( TestGPIO , ( const char * ) "Test", configMINIMAL_STACK_SIZE, NULL,1, NULL, 5 );
+	#else
+	xTaskCreate( TestGPIO , ( const char * ) "Test", configMINIMAL_STACK_SIZE, NULL,1, NULL );
+	#endif
+	
     /* Create Tasks here */
 	
 
@@ -203,8 +401,7 @@ static void configTimer1(void)
 	T1TCR |= 0x1;
 }
 
-static void prvSetupHardware( void )
-{
+static void prvSetupHardware( void ){
 	/* Perform the hardware setup required.  This is minimal as most of the
 	setup is managed by the settings in the project file. */
 
@@ -221,5 +418,17 @@ static void prvSetupHardware( void )
 	VPBDIV = mainBUS_CLK_FULL;
 }
 /*-----------------------------------------------------------*/
+#if (configUSE_TICK_HOOK == 1) 
+void vApplicationTickHook( void ){
+		GPIO_write(PORT_0,PIN3,!GPIO_read(PORT_0,PIN3));
+}
+
+#endif
 
 
+#if (configUSE_IDLE_HOOK == 1) 
+void vApplicationIdleHook( void ){
+GPIO_write(PORT_0,PIN4,!GPIO_read(PORT_0,PIN4));
+}
+
+#endif
