@@ -53,6 +53,7 @@
  */
 
 /* Standard includes. */
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -64,6 +65,17 @@
 /* Peripheral includes. */
 #include "serial.h"
 #include "GPIO.h"
+
+
+unsigned int Button1_inTime;
+unsigned int Button2_inTime;
+unsigned int Simulation1_inTime;
+unsigned int Simulation2_inTime;
+unsigned int Tx_inTime;
+unsigned int Rx_inTime;
+
+unsigned int execution_time=0;
+unsigned int cpu_load=0;
 
 
 /*-----------------------------------------------------------*/
@@ -89,12 +101,13 @@ static void prvSetupHardware( void );
 /*-----------------------------------------------------------*/
 
 
-TaskHandle_t 	* Periodic_Transmitter_Hnd =NULL;
-TaskHandle_t 	* Uart_Receiver_Hnd = NULL;
-TaskHandle_t 	* Button_2_Hnd = NULL;
-TaskHandle_t 	* Button_1_Hnd = NULL;
-TaskHandle_t 	* Load2_Hnd = NULL;
-TaskHandle_t 	* Load1_Hnd = NULL;
+TaskHandle_t 	Periodic_Transmitter_Hnd =NULL;
+TaskHandle_t 	Uart_Receiver_Hnd = NULL;
+TaskHandle_t 	Button_2_Hnd = NULL;
+TaskHandle_t 	Button_1_Hnd = NULL;
+TaskHandle_t 	Load2_Hnd = NULL;
+TaskHandle_t 	Load1_Hnd = NULL;
+TaskHandle_t 	TEST_HND = NULL;
 
 //QueueHandle_t xQueue ;														
 QueueHandle_t xQueue1 ;														
@@ -104,8 +117,8 @@ QueueHandle_t xQueue3 ;
 //Donot forget to change pin mode in GPIO_cfg.c file 														
 #define BUT1_PIN PIN0
 #define BUT2_PIN PIN1
-#define BUT1_PORT PORT_0
-#define BUT2_PORT PORT_0
+#define BUT1_PORT PORT_1
+#define BUT2_PORT PORT_1
 /*
 //Periodicity: 50, Deadline: 50
 This task will monitor rising and falling edge on button 1 and send this event to the consumer task. 
@@ -238,7 +251,7 @@ void Uart_Receiver (void *pvParameter)
 	int j,t,h;
 	
 	for(;;){
-		GPIO_write(PORT_0,PIN2,!GPIO_read(PORT_0,PIN2));
+		//GPIO_write(PORT_0,PIN2,!GPIO_read(PORT_0,PIN2));
 		//Read from Queue and send it over UART TX
 				#if 1
 		if(xQueueReceive( xQueue1,  &button1,  0 ) && button1 != 'N'){
@@ -293,11 +306,11 @@ void Load1 (void *pvParameter){
 	//GPIO_write(PORT_0,PIN2,1);
 	int a,b;
 	for(;;){
-		//GPIO_write(PORT_0,PIN0,1);
+		//GPIO_write(PORT_0,PIN2,1);
 	for (a =0 ; a<37300;a++){
 		
 	}
-		//GPIO_write(PORT_0,PIN0,0);
+		//GPIO_write(PORT_0,PIN2,0);
 		for (b =0 ; b<37300;b++){
 			
 		}
@@ -310,12 +323,12 @@ void Load2 (void *pvParameter){
 	//GPIO_write(PORT_0,PIN2,1);
 	int d,f;
 	for(;;){
-		GPIO_write(PORT_0,PIN0,1);
-	for (d =0 ; d<8950;d++){
+		//GPIO_write(PORT_0,PIN3,1);
+	for (d =0 ; d<89500;d++){
 		
 	}
-		GPIO_write(PORT_0,PIN0,0);
-		for (f =0 ; f<8950;f++){
+		//GPIO_write(PORT_0,PIN3,0);
+		for (f =0 ; f<89500;f++){
 			
 		}
 	vTaskDelayUntil(&PreviousWakeTime,100);
@@ -327,7 +340,7 @@ void Load2 (void *pvParameter){
 void TestGPIO(void *pvParameter){
 	TickType_t  PreviousWakeTime = xTaskGetTickCount();
 	for(;;){
-	GPIO_write(PORT_0,PIN2,!GPIO_read(PORT_0,PIN2));//toggling
+	GPIO_write(PORT_1,PIN2,!GPIO_read(PORT_1,PIN2));//toggling
 	vTaskDelayUntil(&PreviousWakeTime,5);//Delay a task until a specified time. This function can be used by periodic tasks to ensure a constant execution frequency.
 	}
 }
@@ -357,14 +370,74 @@ int main( void )
 							/* Failed to post the message, even after 10 ticks. */
 					}
 #endif
-	//xTaskPeriodicCreate( Button_1_Monitor, ( const char * ) "Button_1_Monitor", configMINIMAL_STACK_SIZE, NULL,1, Button_1_Hnd, 50 );
-	xTaskPeriodicCreate( Button_2_Monitor, ( const char * ) "Button_2_Monitor", configMINIMAL_STACK_SIZE, NULL,1, Button_2_Hnd, 50 );
-	xTaskPeriodicCreate( Periodic_Transmitter, ( const char * ) "Periodic_Transmitter", configMINIMAL_STACK_SIZE, NULL,1, Periodic_Transmitter_Hnd, Periodic_Transmitter_PERIODICITY );
-	xTaskPeriodicCreate( Uart_Receiver , ( const char * ) "Uart_Receiver", configMINIMAL_STACK_SIZE, NULL,1, Uart_Receiver_Hnd, UART_RECEIVER_PERIODICITY );
-	xTaskPeriodicCreate( Load1 , ( const char * ) "Load1", configMINIMAL_STACK_SIZE, NULL,1, Load1_Hnd, 10 );
-	xTaskPeriodicCreate( Load2 , ( const char * ) "Load2", configMINIMAL_STACK_SIZE, NULL,1, Load2_Hnd, 100 );
+	//xTaskPeriodicCreate( Button_1_Monitor, ( const char * ) "Button1", configMINIMAL_STACK_SIZE, NULL,1, &Button_1_Hnd, 50 );
+	//xTaskPeriodicCreate( Button_2_Monitor, ( const char * ) "Button2", configMINIMAL_STACK_SIZE, NULL,1, &Button_2_Hnd, 50 );
+	//xTaskPeriodicCreate( Periodic_Transmitter, ( const char * ) "Tx", configMINIMAL_STACK_SIZE, NULL,1, &Periodic_Transmitter_Hnd, Periodic_Transmitter_PERIODICITY );
+	//xTaskPeriodicCreate( Uart_Receiver , ( const char * ) "Rx", configMINIMAL_STACK_SIZE, NULL,1, &Uart_Receiver_Hnd, UART_RECEIVER_PERIODICITY );
+	//xTaskPeriodicCreate( Load1 , ( const char * ) "L1", configMINIMAL_STACK_SIZE, NULL,1, &Load1_Hnd, 10 );
+	//xTaskPeriodicCreate( Load2 , ( const char * ) "L2", configMINIMAL_STACK_SIZE, NULL,1, &Load2_Hnd, 100 );
+	xTaskPeriodicCreate(
+                    Button_1_Monitor,       /* Function that implements the task. */
+                    "Button1",     /* Text name for the task. */
+                    100,      				/* Stack size in words, not bytes. */
+                    ( void * ) 0,    		/* Parameter passed into the task. */
+                    1,						/* Priority at which the task is created. */
+                    &Button_1_Hnd/* Used to pass out the created task's handle. */
+										,50);      				/* Task Deadline */
+
+xTaskPeriodicCreate(
+                    Button_2_Monitor,       /* Function that implements the task. */
+                    "Button2",     /* Text name for the task. */
+                    100,      				/* Stack size in words, not bytes. */
+                    ( void * ) 0,    		/* Parameter passed into the task. */
+                    1,						/* Priority at which the task is created. */
+                    &Button_2_Hnd,		/* Used to pass out the created task's handle. */
+										50);      				/* Task Deadline */
+
+
+xTaskPeriodicCreate(
+                    Periodic_Transmitter,       /* Function that implements the task. */
+                    "Tx",     /* Text name for the task. */
+                    100,      				/* Stack size in words, not bytes. */
+                    ( void * ) 0,    		/* Parameter passed into the task. */
+                    1,						/* Priority at which the task is created. */
+                    &Periodic_Transmitter_Hnd,		/* Used to pass out the created task's handle. */
+										100);          /*Task Deadline */
+										
+																		
+										
+xTaskPeriodicCreate(
+                    Uart_Receiver,       /* Function that implements the task. */
+                    "Rx",     /* Text name for the task. */
+                    100,      				/* Stack size in words, not bytes. */
+                    ( void * ) 0,    		/* Parameter passed into the task. */
+                    1,						/* Priority at which the task is created. */
+                    &Uart_Receiver_Hnd,		/* Used to pass out the created task's handle. */
+										20);      				/* Task Deadline */
+
+
+
+//xTaskPeriodicCreate(
+//                    Load1,       /* Function that implements the task. */
+//                    "L1",     /* Text name for the task. */
+//                    100,      				/* Stack size in words, not bytes. */
+//                    ( void * ) 0,    		/* Parameter passed into the task. */
+//                    1,						/* Priority at which the task is created. */
+//                    &Load1_Hnd,		/* Used to pass out the created task's handle. */
+//										10);      				/* Task Deadline */
+
+										
+
+//xTaskPeriodicCreate(
+//                    Load2,       /* Function that implements the task. */
+//                    "L2",     /* Text name for the task. */
+//                    100,      				/* Stack size in words, not bytes. */
+//                    ( void * ) 0,    		/* Parameter passed into the task. */
+//                    1,						/* Priority at which the task is created. */
+//                    &Load2_Hnd,		/* Used to pass out the created task's handle. */
+//										100);  
 	//For debug
-	///xTaskPeriodicCreate( TestGPIO , ( const char * ) "Test", configMINIMAL_STACK_SIZE, NULL,1, NULL, 5 );
+	//xTaskPeriodicCreate( TestGPIO , ( const char * ) "Test", configMINIMAL_STACK_SIZE, NULL,1, TEST_HND, 5 );
 	#else
 	xTaskCreate( TestGPIO , ( const char * ) "Test", configMINIMAL_STACK_SIZE, NULL,1, NULL );
 	#endif
@@ -420,7 +493,7 @@ static void prvSetupHardware( void ){
 /*-----------------------------------------------------------*/
 #if (configUSE_TICK_HOOK == 1) 
 void vApplicationTickHook( void ){
-		GPIO_write(PORT_0,PIN3,!GPIO_read(PORT_0,PIN3));
+		//GPIO_write(PORT_0,PIN3,!GPIO_read(PORT_0,PIN3));
 }
 
 #endif
